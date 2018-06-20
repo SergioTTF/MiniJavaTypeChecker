@@ -83,9 +83,17 @@ public class BuildSymbolTableVisitor implements IVisitor<Void> {
 	// VarDeclList vl;
 	// MethodDeclList ml;
 	public Void visit(ClassDeclSimple n) {
-		if(!this.symbolTable.addClass(n.i.toString(), this.currClass.getId())) {
-			System.err.println("Erro, a seguinte classe já foi declarada: " + n.i.toString());
-			return null;
+		if (this.currClass != null) {
+			if(!this.symbolTable.addClass(n.i.toString(), this.currClass.getId())) {
+				System.err.println("Erro, a seguinte classe já foi declarada: " + n.i.toString());
+				return null;
+			}
+		} else {
+			//Corrigindo erro que acontecia quando a classe atual era nula
+			if(!this.symbolTable.addClass(n.i.toString(), null)) {
+				System.err.println("Erro, a seguinte classe já foi declarada: " + n.i.toString());
+				return null;
+			}
 		}
 		this.currClass = this.symbolTable.getClass(n.i.toString());
 		n.i.accept(this);

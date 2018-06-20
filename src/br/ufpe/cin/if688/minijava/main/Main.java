@@ -14,17 +14,19 @@ import br.ufpe.cin.if688.minijava.ast.Print;
 import br.ufpe.cin.if688.minijava.ast.Program;
 import br.ufpe.cin.if688.minijava.ast.VarDecl;
 import br.ufpe.cin.if688.minijava.ast.VarDeclList;
+import br.ufpe.cin.if688.minijava.visitor.BuildSymbolTableVisitor;
 import br.ufpe.cin.if688.minijava.visitor.PrettyPrintVisitor;
+import br.ufpe.cin.if688.minijava.visitor.TypeCheckVisitor;
 
 public class Main {
 
 	public static void main(String[] args) {
 		MainClass main = new MainClass(
-				new Identifier("Teste"), 
-				new Identifier("Testando"), 
+				new Identifier("Teste"),
+				new Identifier("Testando"),
 				new Print(new IntegerLiteral(2))
 		);
-		
+
 		VarDeclList vdl1 = new VarDeclList();
 		vdl1.addElement(new VarDecl(
 			new BooleanType(),
@@ -34,7 +36,7 @@ public class Main {
 				new IntegerType(),
 				new Identifier("num")
 		));
-		
+
 		MethodDeclList mdl = new MethodDeclList();
 		
 		ClassDeclSimple A = new ClassDeclSimple(
@@ -64,6 +66,11 @@ public class Main {
 		
 		PrettyPrintVisitor ppv = new PrettyPrintVisitor();
 		ppv.visit(p);
+		BuildSymbolTableVisitor symbolTableVisitor = new BuildSymbolTableVisitor();
+		symbolTableVisitor.visit(p);
+
+		TypeCheckVisitor typeCheckVisitor = new TypeCheckVisitor(symbolTableVisitor.getSymbolTable());
+		typeCheckVisitor.visit(p);
 	}
 
 }

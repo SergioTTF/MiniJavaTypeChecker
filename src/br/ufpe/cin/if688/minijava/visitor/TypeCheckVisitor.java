@@ -47,7 +47,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	private boolean analyzeVar;
 	private boolean analyzeMet;
 
-	TypeCheckVisitor(SymbolTable st) {
+	public TypeCheckVisitor(SymbolTable st) {
 		symbolTable = st;
 	}
 
@@ -143,7 +143,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		}
 		Type finalType = n.e.accept(this);
 		if(!this.symbolTable.compareTypes(typeOfT, finalType)) {
-			System.err.println("Erro: Inconsistência de tipos. Estava aguardando: " + typeOfT.toString() + ", recebi: " + finalType.toString());
+			System.err.println("Erro: Inconsistência de tipos. Estava aguardando: " + this.typeString(typeOfT) + ", recebi: " + this.typeString(finalType));
 			System.exit(0);
 		}
 		this.currMethod = null;
@@ -174,10 +174,10 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 
 	// String s;
 	public Type visit(IdentifierType n) {
-		if(this.symbolTable.containsClass(n.toString())) {
+		if(this.symbolTable.containsClass(n.s)) {
 			return n;
 		} else {
-			System.err.println("Erro, o símbolo: " + n.toString() + " não foi reconhecido como tipo");
+			System.err.println("Erro, o símbolo: " + n.s + " não foi reconhecido como tipo");
 			System.exit(0);
 		}
 		return null;
@@ -196,7 +196,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	public Type visit(If n) {
 		Type ifType = n.e.accept(this);
 		if(!this.symbolTable.compareTypes(ifType, new BooleanType())) {
-			System.err.println("Não é possível converter " + ifType.toString() + " para Boolean" );
+			System.err.println("Não é possível converter " + this.typeString(ifType) + " para Boolean" );
 			System.exit(0);
 		}
 		n.s1.accept(this);
@@ -209,7 +209,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	public Type visit(While n) {
 		Type whileType = n.e.accept(this);
 		if(!this.symbolTable.compareTypes(whileType, new BooleanType())) {
-			System.err.println("Não é possível converter " + whileType.toString() + " para Boolean" );
+			System.err.println("Não é possível converter " + this.typeString(whileType) + " para Boolean" );
 			System.exit(0);
 		}
 		n.s.accept(this);
@@ -232,7 +232,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		if(this.symbolTable.compareTypes(expecType, finalType)) {
 			return null;
 		} else {
-			System.err.println("Erro de correspondência de tipos, esperava: " + expecType.toString() + ", recebi " + finalType.toString());
+			System.err.println("Erro de correspondência de tipos, esperava: " + this.typeString(expecType) + ", recebi " + this.typeString(finalType));
 			System.exit(0);
 		}
 		return null;
@@ -248,15 +248,15 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		Type e2Type = n.e2.accept(this);
 		//checar se tipos batem
 		if(!this.symbolTable.compareTypes(e2Type, new IntegerType())) {
-			System.err.println("Erro, estava esperando IntegerType, não: " + e2Type.toString());
+			System.err.println("Erro, estava esperando IntegerType, não: " + this.typeString(e2Type));
 			System.exit(0);
 		}
 		if(!this.symbolTable.compareTypes(iType, new IntArrayType())) {
-			System.err.println("Erro, estava esperando IntegerType, não: " + iType.toString());
+			System.err.println("Erro, estava esperando IntegerType, não: " + this.typeString(iType));
 			System.exit(0);
 		}
 		if(!this.symbolTable.compareTypes(e1Type, new IntegerType())) {
-			System.err.println("Erro, estava esperando IntegerType, não: " + e1Type.toString());
+			System.err.println("Erro, estava esperando IntegerType, não: " + this.typeString(e1Type));
 			System.exit(0);
 		}
 		return null;
@@ -327,11 +327,11 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		Type e1Type = n.e1.accept(this);
 		Type e2Type = n.e2.accept(this);
 		if(!this.symbolTable.compareTypes(e1Type, new IntArrayType())) {
-			System.err.println("Erro de tipo, esperava IntArrayType mas foi recebido: " + e1Type.toString() );
+			System.err.println("Erro de tipo, esperava IntArrayType mas foi recebido: " + this.typeString(e1Type) );
 			System.exit(0);
 		}
 		if(!this.symbolTable.compareTypes(e2Type, new IntegerType())) {
-			System.err.println("Erro, aguardava um Inteiro mas recebi: " + e2Type.toString());
+			System.err.println("Erro, aguardava um Inteiro mas recebi: " + this.typeString(e2Type));
 			System.exit(0);
 		}
 		return new IntegerType();
@@ -341,7 +341,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	public Type visit(ArrayLength n) {
 		Type arrayLenType = n.e.accept(this);
 		if(!this.symbolTable.compareTypes(arrayLenType, new IntArrayType())) {
-			System.err.println("Erro, aguardava um IntArrayType mas foi recebido um: " + arrayLenType.toString());
+			System.err.println("Erro, aguardava um IntArrayType mas foi recebido um: " + this.typeString(arrayLenType));
 			System.exit(0);
 		}
 		return new IntegerType();
@@ -369,7 +369,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 					System.err.println("Erro, parâmetro nulo ou ausente na chamda do método: " + methC.getId());
 					System.exit(0);
 				} else if(!this.symbolTable.compareTypes(elemType, paramType)) {
-					System.err.println("Erro nos tipos, aguardava um: " + paramType.toString() + " recebi um: " + elemType.toString());
+					System.err.println("Erro nos tipos, aguardava um: " + this.typeString(paramType) + " recebi um: " + this.typeString(elemType));
 					System.exit(0);
 				}
 				loop++;
@@ -380,7 +380,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 			}
 			return iType;
 		} else {
-			System.err.println("Erro, aguardava um IdentifierType recebi um:" + expecIdenType.toString());
+			System.err.println("Erro, aguardava um IdentifierType recebi um:" + this.typeString(expecIdenType));
 			System.exit(0);
 		}
 		return null;
@@ -413,7 +413,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	public Type visit(NewArray n) {
 		Type arrinxType = n.e.accept(this);
 		if(!this.symbolTable.compareTypes(arrinxType, new IntegerType())) {
-			System.err.println("Erro, estava aguardando um inteiro recebi: " + arrinxType.toString());
+			System.err.println("Erro, estava aguardando um inteiro recebi: " + this.typeString(arrinxType));
 			System.exit(0);
 		}
 		return new IntArrayType();
@@ -449,5 +449,14 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 			return this.symbolTable.getClass(n.toString()).type();
 		}
 		return null;
+	}
+	private String typeString(Type type) {
+		if(type instanceof IdentifierType) {
+			return ((IdentifierType) type).s;
+		} else if(type != null){
+			return type.getClass().getSimpleName();
+		} else {
+			return "Null or Undefined";
+		}
 	}
 }
