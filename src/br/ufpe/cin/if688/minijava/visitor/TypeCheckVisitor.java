@@ -35,11 +35,17 @@ import br.ufpe.cin.if688.minijava.ast.True;
 import br.ufpe.cin.if688.minijava.ast.Type;
 import br.ufpe.cin.if688.minijava.ast.VarDecl;
 import br.ufpe.cin.if688.minijava.ast.While;
+import br.ufpe.cin.if688.minijava.symboltable.Method;
+import br.ufpe.cin.if688.minijava.symboltable.Class;
 import br.ufpe.cin.if688.minijava.symboltable.SymbolTable;
 
 public class TypeCheckVisitor implements IVisitor<Type> {
 
 	private SymbolTable symbolTable;
+	private Method currMethod;
+	private Class currClass;
+	private boolean analyzeVar;
+	private boolean analyzeMet;
 
 	TypeCheckVisitor(SymbolTable st) {
 		symbolTable = st;
@@ -58,9 +64,15 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// Identifier i1,i2;
 	// Statement s;
 	public Type visit(MainClass n) {
+		this.currClass = this.symbolTable.getClass(n.i1.toString());
+		this.currMethod = this.symbolTable.getMethod("main", this.currClass.getId());
 		n.i1.accept(this);
+		this.analyzeVar = true;
 		n.i2.accept(this);
+		this.analyzeVar = false;
 		n.s.accept(this);
+		this.currMethod = null;
+		this.currClass = null;
 		return null;
 	}
 
@@ -68,6 +80,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// VarDeclList vl;
 	// MethodDeclList ml;
 	public Type visit(ClassDeclSimple n) {
+		this.currClass = this.symbolTable.getClass(n.i.toString());
 		n.i.accept(this);
 		for (int i = 0; i < n.vl.size(); i++) {
 			n.vl.elementAt(i).accept(this);
@@ -75,6 +88,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		for (int i = 0; i < n.ml.size(); i++) {
 			n.ml.elementAt(i).accept(this);
 		}
+		this.currClass = null;
 		return null;
 	}
 
@@ -83,6 +97,7 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// VarDeclList vl;
 	// MethodDeclList ml;
 	public Type visit(ClassDeclExtends n) {
+		this.currClass = this.symbolTable.getClass(n.i.toString());
 		n.i.accept(this);
 		n.j.accept(this);
 		for (int i = 0; i < n.vl.size(); i++) {
@@ -91,15 +106,18 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		for (int i = 0; i < n.ml.size(); i++) {
 			n.ml.elementAt(i).accept(this);
 		}
+		this.currClass = null;
 		return null;
 	}
 
 	// Type t;
 	// Identifier i;
 	public Type visit(VarDecl n) {
-		n.t.accept(this);
+		Type varType = n.t.accept(this);
+		this.analyzeVar = true;
 		n.i.accept(this);
-		return null;
+		this.analyzeVar = false;
+		return varType;
 	}
 
 	// Type t;
@@ -109,8 +127,11 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// StatementList sl;
 	// Exp e;
 	public Type visit(MethodDecl n) {
-		n.t.accept(this);
+		this.currMethod = this.symbolTable.getMethod(n.i.toString(), this.currClass.getId());
+		Type typeOfT = n.t.accept(this);
+		this.analyzeMet = true;
 		n.i.accept(this);
+		this.analyzeMet = false;
 		for (int i = 0; i < n.fl.size(); i++) {
 			n.fl.elementAt(i).accept(this);
 		}
@@ -120,32 +141,45 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 		for (int i = 0; i < n.sl.size(); i++) {
 			n.sl.elementAt(i).accept(this);
 		}
-		n.e.accept(this);
-		return null;
+		Type finalType = n.e.accept(this);
+		if(!this.symbolTable.compareTypes(typeOfT, finalType)) {
+			System.err.println("Erro: Inconsistência de tipos. Estava aguardando: " + typeOfT.toString() + ", recebi: " + finalType.toString());
+			System.exit(0);
+		}
+		this.currMethod = null;
+		return typeOfT;
 	}
 
 	// Type t;
 	// Identifier i;
 	public Type visit(Formal n) {
-		n.t.accept(this);
+		Type paramType = n.t.accept(this);
+		this.analyzeVar = true;
 		n.i.accept(this);
-		return null;
+		this.analyzeVar = false;
+		return paramType;
 	}
 
 	public Type visit(IntArrayType n) {
-		return null;
+		return n;
 	}
 
 	public Type visit(BooleanType n) {
-		return null;
+		return n;
 	}
 
 	public Type visit(IntegerType n) {
-		return null;
+		return n;
 	}
 
 	// String s;
 	public Type visit(IdentifierType n) {
+		if(this.symbolTable.containsClass(n.toString())) {
+			return n;
+		} else {
+			System.err.println("Erro, o símbolo: " + n.toString() + " não foi reconhecido como tipo");
+			System.exit(0);
+		}
 		return null;
 	}
 
@@ -160,7 +194,11 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// Exp e;
 	// Statement s1,s2;
 	public Type visit(If n) {
-		n.e.accept(this);
+		Type ifType = n.e.accept(this);
+		if(!this.symbolTable.compareTypes(ifType, new BooleanType())) {
+			System.err.println("Não é possível converter " + ifType.toString() + " para Boolean" );
+			System.exit(0);
+		}
 		n.s1.accept(this);
 		n.s2.accept(this);
 		return null;
@@ -169,7 +207,11 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// Exp e;
 	// Statement s;
 	public Type visit(While n) {
-		n.e.accept(this);
+		Type whileType = n.e.accept(this);
+		if(!this.symbolTable.compareTypes(whileType, new BooleanType())) {
+			System.err.println("Não é possível converter " + whileType.toString() + " para Boolean" );
+			System.exit(0);
+		}
 		n.s.accept(this);
 		return null;
 	}
@@ -183,121 +225,229 @@ public class TypeCheckVisitor implements IVisitor<Type> {
 	// Identifier i;
 	// Exp e;
 	public Type visit(Assign n) {
-		n.i.accept(this);
-		n.e.accept(this);
+		this.analyzeVar = true;
+		Type expecType = n.i.accept(this);
+		this.analyzeVar = false;
+		Type finalType = n.e.accept(this);
+		if(this.symbolTable.compareTypes(expecType, finalType)) {
+			return null;
+		} else {
+			System.err.println("Erro de correspondência de tipos, esperava: " + expecType.toString() + ", recebi " + finalType.toString());
+			System.exit(0);
+		}
 		return null;
 	}
 
 	// Identifier i;
 	// Exp e1,e2;
 	public Type visit(ArrayAssign n) {
-		n.i.accept(this);
-		n.e1.accept(this);
-		n.e2.accept(this);
+		this.analyzeVar = true;
+		Type iType = n.i.accept(this);
+		this.analyzeVar = false;
+		Type e1Type = n.e1.accept(this);
+		Type e2Type = n.e2.accept(this);
+		//checar se tipos batem
+		if(!this.symbolTable.compareTypes(e2Type, new IntegerType())) {
+			System.err.println("Erro, estava esperando IntegerType, não: " + e2Type.toString());
+			System.exit(0);
+		}
+		if(!this.symbolTable.compareTypes(iType, new IntArrayType())) {
+			System.err.println("Erro, estava esperando IntegerType, não: " + iType.toString());
+			System.exit(0);
+		}
+		if(!this.symbolTable.compareTypes(e1Type, new IntegerType())) {
+			System.err.println("Erro, estava esperando IntegerType, não: " + e1Type.toString());
+			System.exit(0);
+		}
 		return null;
 	}
 
 	// Exp e1,e2;
 	public Type visit(And n) {
-		n.e1.accept(this);
-		n.e2.accept(this);
-		return null;
+		Type firstArg = n.e1.accept(this);
+		Type sndArg = n.e2.accept(this);
+		// checando se os argumentos são expressões booleanas
+		if((!this.symbolTable.compareTypes(firstArg, new BooleanType())) || (!this.symbolTable.compareTypes(sndArg, new BooleanType()))) {
+			System.err.println("Erro, operador AND requer argumentos booleanos");
+			System.exit(0);
+		}
+		return new BooleanType();
 	}
 
 	// Exp e1,e2;
 	public Type visit(LessThan n) {
-		n.e1.accept(this);
-		n.e2.accept(this);
-		return null;
+		Type firstArg = n.e1.accept(this);
+		Type sndArg = n.e2.accept(this);
+		// checando se os argumentos são valores de tipo inteiro
+		if((!this.symbolTable.compareTypes(firstArg, new IntegerType())) || (!this.symbolTable.compareTypes(sndArg, new IntegerType()))) {
+			System.err.println("Erro, operador 'Menor que' requer argumentos do tipo Inteiro");
+			System.exit(0);
+		}
+		return new BooleanType();
 	}
 
 	// Exp e1,e2;
 	public Type visit(Plus n) {
-		n.e1.accept(this);
-		n.e2.accept(this);
-		return null;
+		Type firstArg = n.e1.accept(this);
+		Type sndArg = n.e2.accept(this);
+		// checando se os argumentos são valores de tipo inteiro
+		if((!this.symbolTable.compareTypes(firstArg, new IntegerType())) || (!this.symbolTable.compareTypes(sndArg, new IntegerType()))) {
+			System.err.println("Erro, operador 'Soma' requer argumentos do tipo Inteiro");
+			System.exit(0);
+		}
+		return new IntegerType();
 	}
 
 	// Exp e1,e2;
 	public Type visit(Minus n) {
-		n.e1.accept(this);
-		n.e2.accept(this);
-		return null;
+		Type firstArg = n.e1.accept(this);
+		Type sndArg = n.e2.accept(this);
+		// checando se os argumentos são valores de tipo inteiro
+		if((!this.symbolTable.compareTypes(firstArg, new IntegerType())) || (!this.symbolTable.compareTypes(sndArg, new IntegerType()))) {
+			System.err.println("Erro, operador 'Subtração' requer argumentos do tipo Inteiro");
+			System.exit(0);
+		}
+		return new IntegerType();
 	}
 
 	// Exp e1,e2;
 	public Type visit(Times n) {
-		n.e1.accept(this);
-		n.e2.accept(this);
-		return null;
+		Type firstArg = n.e1.accept(this);
+		Type sndArg = n.e2.accept(this);
+		// checando se os argumentos são valores de tipo inteiro
+		if((!this.symbolTable.compareTypes(firstArg, new IntegerType())) || (!this.symbolTable.compareTypes(sndArg, new IntegerType()))) {
+			System.err.println("Erro, operador 'Multiplicação' requer argumentos do tipo Inteiro");
+			System.exit(0);
+		}
+		return new IntegerType();
 	}
 
 	// Exp e1,e2;
 	public Type visit(ArrayLookup n) {
-		n.e1.accept(this);
-		n.e2.accept(this);
-		return null;
+		Type e1Type = n.e1.accept(this);
+		Type e2Type = n.e2.accept(this);
+		if(!this.symbolTable.compareTypes(e1Type, new IntArrayType())) {
+			System.err.println("Erro de tipo, esperava IntArrayType mas foi recebido: " + e1Type.toString() );
+			System.exit(0);
+		}
+		if(!this.symbolTable.compareTypes(e2Type, new IntegerType())) {
+			System.err.println("Erro, aguardava um Inteiro mas recebi: " + e2Type.toString());
+			System.exit(0);
+		}
+		return new IntegerType();
 	}
 
 	// Exp e;
 	public Type visit(ArrayLength n) {
-		n.e.accept(this);
-		return null;
+		Type arrayLenType = n.e.accept(this);
+		if(!this.symbolTable.compareTypes(arrayLenType, new IntArrayType())) {
+			System.err.println("Erro, aguardava um IntArrayType mas foi recebido um: " + arrayLenType.toString());
+			System.exit(0);
+		}
+		return new IntegerType();
 	}
 
 	// Exp e;
 	// Identifier i;
 	// ExpList el;
 	public Type visit(Call n) {
-		n.e.accept(this);
-		n.i.accept(this);
-		for (int i = 0; i < n.el.size(); i++) {
-			n.el.elementAt(i).accept(this);
+		Type expecIdenType = n.e.accept(this);
+		if (expecIdenType instanceof IdentifierType) {
+			int loop = 0;
+			Class classC = this.symbolTable.getClass(((IdentifierType) expecIdenType).toString());
+			Method methC = this.symbolTable.getMethod(n.i.toString(), classC.getId());
+			Class returnClass = this.currClass;
+			this.currClass = classC;
+			this.analyzeMet = true;
+			Type iType = n.i.accept(this);
+			this.analyzeMet = false;
+			this.currClass = returnClass;
+			while (loop < n.el.size()) {
+				Type elemType = n.el.elementAt(loop).accept(this);
+				Type paramType = methC.getParamAt(loop).type();
+				if(paramType == null) {
+					System.err.println("Erro, parâmetro nulo ou ausente na chamda do método: " + methC.getId());
+					System.exit(0);
+				} else if(!this.symbolTable.compareTypes(elemType, paramType)) {
+					System.err.println("Erro nos tipos, aguardava um: " + paramType.toString() + " recebi um: " + elemType.toString());
+					System.exit(0);
+				}
+				loop++;
+			}
+			if(methC.getParamAt(loop).type() != null) {
+				System.err.println("Erro, parâmetro nulo ou ausente na chamda do método: " + methC.getId());
+				System.exit(0);
+			}
+			return iType;
+		} else {
+			System.err.println("Erro, aguardava um IdentifierType recebi um:" + expecIdenType.toString());
+			System.exit(0);
 		}
 		return null;
 	}
 
 	// int i;
 	public Type visit(IntegerLiteral n) {
-		return null;
+		return new IntegerType();
 	}
 
 	public Type visit(True n) {
-		return null;
+		return new BooleanType();
 	}
 
 	public Type visit(False n) {
-		return null;
+		return new BooleanType();
 	}
 
 	// String s;
 	public Type visit(IdentifierExp n) {
-		return null;
+		Type expType = this.symbolTable.getVarType(this.currMethod, this.currClass, n.s);
+		return expType;
 	}
 
 	public Type visit(This n) {
-		return null;
+		return this.currClass.type();
 	}
 
 	// Exp e;
 	public Type visit(NewArray n) {
-		n.e.accept(this);
-		return null;
+		Type arrinxType = n.e.accept(this);
+		if(!this.symbolTable.compareTypes(arrinxType, new IntegerType())) {
+			System.err.println("Erro, estava aguardando um inteiro recebi: " + arrinxType.toString());
+			System.exit(0);
+		}
+		return new IntArrayType();
 	}
 
 	// Identifier i;
 	public Type visit(NewObject n) {
-		return null;
+		return n.i.accept(this);
 	}
 
 	// Exp e;
 	public Type visit(Not n) {
-		n.e.accept(this);
+		Type expType = n.e.accept(this);
+		if(!this.symbolTable.compareTypes(expType, new BooleanType())) {
+			System.err.println("Erro, estava aguardando um valor booleano no operador 'NOT");
+			System.exit(0);
+		}
 		return null;
 	}
 
 	// String s;
 	public Type visit(Identifier n) {
+		if (this.analyzeVar) {
+			//estamos analisando uma variável
+			return this.symbolTable.getVarType(this.currMethod, this.currClass, n.toString());
+		} else if (this.analyzeMet) {
+			//estamos analisando um método
+			return this.symbolTable.getMethodType(n.toString(), this.currClass.getId());
+		} else if (this.symbolTable.getClass(n.toString()) == null) {
+			System.err.println("Erro, não existe variável com esse nome: " + n.toString());
+			System.exit(0);
+		} else {
+			return this.symbolTable.getClass(n.toString()).type();
+		}
 		return null;
 	}
 }
